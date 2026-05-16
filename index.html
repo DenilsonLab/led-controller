@@ -494,7 +494,7 @@
       <div class="logo-dot"></div>
       <h1>LED<span> SYNC</span></h1>
     </div>
-    <span class="version">v1.2</span>
+    <span class="version">v1.3</span>
   </header>
 
   <!-- Browser support warning -->
@@ -663,6 +663,25 @@
 
   <!-- Log -->
   <div id="log"><span class="info">[ LED SYNC ] Listo. Conectá el dispositivo y capturá el audio.</span></div>
+
+  <!-- CMD Tester -->
+  <div class="card" id="card-cmdtest" style="margin-top:14px;">
+    <div class="card-header">
+      <span class="card-title">🔧 Diagnóstico — Encontrar comando correcto</span>
+    </div>
+    <div style="font-size:12px; color:var(--muted); margin-bottom:14px; line-height:1.7;">
+      Si el LED no responde, hacé click en cada botón uno por uno. Cuando el LED cambie a <strong style="color:#f87171;">rojo</strong>, ese es el formato correcto.
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;" id="cmd-test-grid">
+      <!-- populated by JS -->
+    </div>
+    <div style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border);">
+      <div style="font-size:11px; color:var(--muted); margin-bottom:8px; letter-spacing:0.08em; text-transform:uppercase;">Comando hex enviado</div>
+      <div id="cmd-hex-display" style="font-family: 'Space Mono', monospace; font-size:11px; color:#60a5fa; background:var(--surface2); padding:10px 14px; border-radius:8px; word-break:break-all; min-height:32px;">
+        —
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -704,7 +723,7 @@ const PROTOCOLS = [
     cmd: (r,g,b) => new Uint8Array([0x56, r, g, b, 0x00, 0xF0, 0xAA])
   },
   {
-    name: 'Generic FFE0+FFE1',
+    name: 'Generic FFE0+FFE1 — Magic format',
     service: '0000ffe0-0000-1000-8000-00805f9b34fb',
     char:    '0000ffe1-0000-1000-8000-00805f9b34fb',
     cmd: (r,g,b) => new Uint8Array([0x56, r, g, b, 0x00, 0xF0, 0xAA])
@@ -1146,6 +1165,77 @@ function log(type, msg) {
   el.scrollTop = el.scrollHeight;
 }
 
+// ─── Command formats to test ─────────────────────────────────────
+const CMD_FORMATS = [
+  { label: 'Magic Blue 7B',    desc: '56 RR GG BB 00 F0 AA',    fn: (r,g,b) => [0x56,r,g,b,0x00,0xF0,0xAA] },
+  { label: 'ELK-BLEDOM 9B',    desc: '7E 00 05 03 RR GG BB 00 EF', fn: (r,g,b) => [0x7e,0x00,0x05,0x03,r,g,b,0x00,0xef] },
+  { label: 'LEDBLE 9B v1',     desc: '7E 07 05 03 RR GG BB 10 EF', fn: (r,g,b) => [0x7e,0x07,0x05,0x03,r,g,b,0x10,0xef] },
+  { label: 'LEDBLE 9B v2',     desc: '7E 00 01 01 RR GG BB 00 EF', fn: (r,g,b) => [0x7e,0x00,0x01,0x01,r,g,b,0x00,0xef] },
+  { label: 'Raw RGB 3B',       desc: 'RR GG BB',                 fn: (r,g,b) => [r,g,b] },
+  { label: 'Raw RGB+W 4B',     desc: 'RR GG BB 00',              fn: (r,g,b) => [r,g,b,0x00] },
+  { label: 'AA header',        desc: 'AA 0E RR GG BB FF 00 CHK', fn: (r,g,b) => { const chk=(0xAA+0x0E+r+g+b+0xFF)&0xFF; return [0xAA,0x0E,r,g,b,0xFF,0x00,chk]; } },
+  { label: 'Custom hex',       desc: 'Ingresá tus propios bytes', fn: null },
+];
+
+function buildCmdTester() {
+  const grid = document.getElementById('cmd-test-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  CMD_FORMATS.forEach((fmt, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-secondary';
+    btn.style.cssText = 'font-size:11px; padding:9px 10px; text-align:left; display:flex; flex-direction:column; gap:3px; height:auto;';
+    btn.innerHTML = `<span style="font-weight:700; color:var(--text);">${fmt.label}</span><span style="color:var(--muted); font-size:10px; font-family:monospace;">${fmt.desc}</span>`;
+    if (fmt.fn === null) {
+      // Custom hex input
+      btn.innerHTML = `<span style="font-weight:700; color:var(--text);">Custom hex</span>`;
+      btn.onclick = () => {
+        const hex = prompt('Ingresá los bytes en hex separados por espacios (ej: 56 FF 00 00 00 F0 AA):');
+        if (!hex) return;
+        const bytes = hex.trim().split(/\s+/).map(h => parseInt(h, 16)).filter(n => !isNaN(n));
+        if (bytes.length === 0) return;
+        sendRawBytes(new Uint8Array(bytes));
+        showCmdHex(bytes);
+        log('info', `Custom: [${bytes.map(b=>b.toString(16).padStart(2,'0').toUpperCase()).join(' ')}]`);
+      };
+    } else {
+      btn.onclick = () => testCmdFormat(fmt, i);
+    }
+    grid.appendChild(btn);
+  });
+}
+
+async function testCmdFormat(fmt, idx) {
+  if (!bleChar) {
+    log('err', 'Conectá el LED primero.');
+    return;
+  }
+  const r = 255, g = 0, b = 0; // Rojo para fácil identificación visual
+  const bytes = fmt.fn(r, g, b);
+  const cmd = new Uint8Array(bytes);
+  showCmdHex(bytes);
+  log('info', `Probando "${fmt.label}": [${bytes.map(b=>b.toString(16).padStart(2,'0').toUpperCase()).join(' ')}]`);
+  await sendRawBytes(cmd);
+  // Si funciona, actualizar el protocolo activo
+  document.getElementById('cmd-test-grid').querySelectorAll('button').forEach((b,i) => {
+    b.style.borderColor = i === idx ? 'rgba(74,222,128,0.5)' : '';
+    b.style.background  = i === idx ? 'rgba(74,222,128,0.08)' : '';
+  });
+}
+
+async function sendRawBytes(cmd) {
+  if (!bleChar) return;
+  try {
+    await bleChar.writeValueWithoutResponse(cmd);
+  } catch(e) {
+    try {
+      await bleChar.writeValue(cmd);
+    } catch(_) {
+      log('err', `Error enviando bytes: ${e.message}`);
+    }
+  }
+}
+
 // ─── Check support ────────────────────────────────────────────────
 window.addEventListener('load', () => {
   if (!navigator.bluetooth || !window.isSecureContext) {
@@ -1156,6 +1246,7 @@ window.addEventListener('load', () => {
     log('warn', 'getDisplayMedia no disponible en este contexto.');
   }
   log('info', `Navegador: ${navigator.userAgent.includes('Chrome') ? '✓ Chrome detectado' : '⚠ Usá Chrome'}`);
+  buildCmdTester();
 });
 </script>
 </body>
