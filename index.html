@@ -494,7 +494,7 @@
       <div class="logo-dot"></div>
       <h1>LED<span> SYNC</span></h1>
     </div>
-    <span class="version">v1.3</span>
+    <span class="version">v1.0</span>
   </header>
 
   <!-- Browser support warning -->
@@ -708,7 +708,7 @@ const PROTOCOLS = [
     name: 'Magic Blue / LED LAMP (FFF0+FFF3)',
     service: '0000fff0-0000-1000-8000-00805f9b34fb',
     char:    '0000fff3-0000-1000-8000-00805f9b34fb',
-    cmd: (r,g,b) => new Uint8Array([0x56, r, g, b, 0x00, 0xF0, 0xAA])
+    cmd: (r,g,b) => new Uint8Array([0x7e,0x07,0x05,0x03,r,g,b,0x10,0xef])
   },
   {
     name: 'ELK-BLEDOM 9-byte (FFF0+FFF3)',
@@ -723,10 +723,10 @@ const PROTOCOLS = [
     cmd: (r,g,b) => new Uint8Array([0x56, r, g, b, 0x00, 0xF0, 0xAA])
   },
   {
-    name: 'Generic FFE0+FFE1 — Magic format',
+    name: 'LEDBLE (FFE0+FFE1) — 7E 07 05 03',
     service: '0000ffe0-0000-1000-8000-00805f9b34fb',
     char:    '0000ffe1-0000-1000-8000-00805f9b34fb',
-    cmd: (r,g,b) => new Uint8Array([0x56, r, g, b, 0x00, 0xF0, 0xAA])
+    cmd: (r,g,b) => new Uint8Array([0x7e,0x07,0x05,0x03,r,g,b,0x10,0xef])
   },
   {
     name: 'SP110E (FFE5+FFE9)',
@@ -1228,12 +1228,15 @@ async function sendRawBytes(cmd) {
   try {
     await bleChar.writeValueWithoutResponse(cmd);
   } catch(e) {
-    try {
-      await bleChar.writeValue(cmd);
-    } catch(_) {
+    try { await bleChar.writeValue(cmd); } catch(_) {
       log('err', `Error enviando bytes: ${e.message}`);
     }
   }
+}
+
+function showCmdHex(bytes) {
+  document.getElementById('cmd-hex-display').textContent =
+    bytes.map(b => b.toString(16).padStart(2,'0').toUpperCase()).join(' ');
 }
 
 // ─── Check support ────────────────────────────────────────────────
