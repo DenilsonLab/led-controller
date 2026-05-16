@@ -516,18 +516,12 @@
           <span class="dot" id="ble-dot"></span>
           Tira LED (Bluetooth)
         </div>
-        <div class="select-wrap">
-          <select id="protocol-select">
-            <option value="magic">Magic Blue / LED LAMP (más común)</option>
-            <option value="elksble">ELK-BLEDOM (7 bytes)</option>
-            <option value="sp110e">SP110E</option>
-            <option value="custom">Custom UUID…</option>
-          </select>
+        <div id="protocol-found-row" style="display:none; align-items:center; gap:6px; font-size:11px; color:#4ade80; background:rgba(74,222,128,0.08); border:1px solid rgba(74,222,128,0.2); border-radius:6px; padding:6px 10px;">
+          <span>✓</span><span id="protocol-found" style="word-break:break-all;"></span>
         </div>
-        <button class="btn btn-primary" id="btn-ble" onclick="connectBLE()">Conectar LED</button>
-        <div id="custom-uuids" style="display:none; margin-top:4px; font-size:11px; color:var(--muted);">
-          <div>Service UUID: <input id="custom-service" placeholder="0000fff0-..." style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:4px 8px;color:var(--text);font-size:11px;width:100%;margin-top:4px;"></div>
-          <div style="margin-top:6px;">Char UUID: <input id="custom-char" placeholder="0000fff3-..." style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:4px 8px;color:var(--text);font-size:11px;width:100%;margin-top:4px;"></div>
+        <button class="btn btn-primary" id="btn-ble" onclick="connectBLE()">Auto-conectar LED</button>
+        <div style="font-size:10px; color:var(--muted); line-height:1.5;">
+          Prueba automáticamente 6 protocolos hasta encontrar el correcto.
         </div>
       </div>
 
@@ -688,26 +682,50 @@ const canvas = document.getElementById('vis-canvas');
 const ctx = canvas.getContext('2d');
 
 // ─── Protocol definitions ──────────────────────────────────────
-const PROTOCOLS = {
-  magic: {
+// cmd: la función que genera el comando de color
+// cmdOff: apagar (opcional)
+const PROTOCOLS = [
+  {
+    name: 'Magic Blue / LED LAMP (FFF0+FFF3)',
     service: '0000fff0-0000-1000-8000-00805f9b34fb',
     char:    '0000fff3-0000-1000-8000-00805f9b34fb',
     cmd: (r,g,b) => new Uint8Array([0x56, r, g, b, 0x00, 0xF0, 0xAA])
   },
-  elksble: {
+  {
+    name: 'ELK-BLEDOM 9-byte (FFF0+FFF3)',
     service: '0000fff0-0000-1000-8000-00805f9b34fb',
     char:    '0000fff3-0000-1000-8000-00805f9b34fb',
     cmd: (r,g,b) => new Uint8Array([0x7e,0x00,0x05,0x03,r,g,b,0x00,0xef])
   },
-  sp110e: {
+  {
+    name: 'Triones / Happy Lighting (FFD0+FFD9)',
+    service: '0000ffd0-0000-1000-8000-00805f9b34fb',
+    char:    '0000ffd9-0000-1000-8000-00805f9b34fb',
+    cmd: (r,g,b) => new Uint8Array([0x56, r, g, b, 0x00, 0xF0, 0xAA])
+  },
+  {
+    name: 'Generic FFE0+FFE1',
+    service: '0000ffe0-0000-1000-8000-00805f9b34fb',
+    char:    '0000ffe1-0000-1000-8000-00805f9b34fb',
+    cmd: (r,g,b) => new Uint8Array([0x56, r, g, b, 0x00, 0xF0, 0xAA])
+  },
+  {
+    name: 'SP110E (FFE5+FFE9)',
     service: '0000ffe5-0000-1000-8000-00805f9b34fb',
     char:    '0000ffe9-0000-1000-8000-00805f9b34fb',
     cmd: (r,g,b) => new Uint8Array([0x38, r, g, b])
   },
-  custom: null
-};
+  {
+    name: 'BLE-UART Nordic NUS TX',
+    service: '6e400001-b5a3-f393-e0a9-e50e24dcca9e',
+    char:    '6e400002-b5a3-f393-e0a9-e50e24dcca9e',
+    cmd: (r,g,b) => new Uint8Array([0x56, r, g, b, 0x00, 0xF0, 0xAA])
+  },
+];
 
-// ─── BLE Connect ─────────────────────────────────────────────────
+let activeProtocol = null;
+
+// ─── BLE Connect — Auto Discovery ────────────────────────────────
 async function connectBLE() {
   if (!navigator.bluetooth) {
     log('err', 'Web Bluetooth no disponible. Necesitás Chrome en HTTPS.');
@@ -715,36 +733,56 @@ async function connectBLE() {
     return;
   }
 
-  const proto = document.getElementById('protocol-select').value;
-  let serviceUUID, charUUID;
-
-  if (proto === 'custom') {
-    serviceUUID = document.getElementById('custom-service').value.trim();
-    charUUID    = document.getElementById('custom-char').value.trim();
-    if (!serviceUUID || !charUUID) { log('err', 'Ingresá los UUIDs.'); return; }
-  } else {
-    serviceUUID = PROTOCOLS[proto].service;
-    charUUID    = PROTOCOLS[proto].char;
-  }
-
   try {
-    log('info', 'Buscando dispositivos BLE…');
+    log('info', 'Abriendo selector de dispositivos BLE…');
     setBadge('status-badge', 'Buscando…', 'warn');
+
+    // Pedimos el dispositivo con TODOS los servicios conocidos como opcionales
+    // así el navegador nos deja acceder a cualquiera de ellos después
+    const allServiceUUIDs = PROTOCOLS.map(p => p.service);
+    const uniqueServices  = [...new Set(allServiceUUIDs)];
 
     bleDevice = await navigator.bluetooth.requestDevice({
       acceptAllDevices: true,
-      optionalServices: [serviceUUID]
+      optionalServices: uniqueServices
     });
 
-    log('info', `Conectando a ${bleDevice.name || 'dispositivo'}…`);
-    const server  = await bleDevice.gatt.connect();
-    const service = await server.getPrimaryService(serviceUUID);
-    bleChar       = await service.getCharacteristic(charUUID);
+    log('info', `Dispositivo seleccionado: "${bleDevice.name || 'Sin nombre'}"`);
+    log('info', 'Conectando al servidor GATT…');
+
+    const server = await bleDevice.gatt.connect();
+    log('ok', 'GATT conectado. Probando protocolos…');
+
+    // Auto-discovery: prueba cada protocolo hasta que uno funcione
+    activeProtocol = null;
+    for (const proto of PROTOCOLS) {
+      try {
+        log('info', `  → Probando: ${proto.name}`);
+        const service = await server.getPrimaryService(proto.service);
+        const char    = await service.getCharacteristic(proto.char);
+        // Si llegamos acá, funcionó
+        bleChar        = char;
+        activeProtocol = proto;
+        break;
+      } catch (e) {
+        // Este protocolo no existe en el dispositivo, seguimos
+      }
+    }
+
+    if (!activeProtocol) {
+      log('err', '⚠ Ningún protocolo conocido funcionó.');
+      log('err', 'Instalá "nRF Connect" en el celular y leé los UUIDs del dispositivo.');
+      log('err', 'Luego usá la opción Custom UUID más abajo.');
+      setBadge('status-badge', 'Sin protocolo', 'err');
+      return;
+    }
 
     setBadge('status-badge', '● LED Conectado', 'ok');
     setDot('ble-dot', 'on');
-    log('ok', `LED conectado: ${bleDevice.name || 'Unknown Device'}`);
+    log('ok', `✓ Protocolo encontrado: ${activeProtocol.name}`);
     document.getElementById('btn-ble').textContent = 'Reconectar';
+    document.getElementById('protocol-found').textContent = activeProtocol.name;
+    document.getElementById('protocol-found-row').style.display = 'flex';
     document.getElementById('card-connect').classList.add('active');
 
     bleDevice.addEventListener('gattserverdisconnected', () => {
@@ -754,12 +792,18 @@ async function connectBLE() {
       log('err', 'LED desconectado.');
     });
 
-    // Test with current color
-    await sendColor(currentR, currentG, currentB);
+    // Test rápido: flash blanco
+    await sendColor(255, 255, 255);
+    await new Promise(r => setTimeout(r, 300));
+    await sendColor(0, 0, 80);
 
   } catch (err) {
-    log('err', `BLE Error: ${err.message}`);
-    setBadge('status-badge', 'Error BLE', 'err');
+    if (err.name === 'NotFoundError' || err.message.includes('cancelled')) {
+      log('info', 'Selección de dispositivo cancelada.');
+    } else {
+      log('err', `BLE Error: ${err.message}`);
+    }
+    setBadge('status-badge', 'Error', 'err');
   }
 }
 
@@ -823,14 +867,11 @@ function setupAnalyser(stream) {
 
 // ─── Color Sender ────────────────────────────────────────────────
 async function sendColor(r, g, b) {
-  if (!bleChar) return;
+  if (!bleChar || !activeProtocol) return;
   r = Math.round(Math.min(255, Math.max(0, r)));
   g = Math.round(Math.min(255, Math.max(0, g)));
   b = Math.round(Math.min(255, Math.max(0, b)));
-  const proto = document.getElementById('protocol-select').value;
-  const cmd = proto === 'custom'
-    ? new Uint8Array([0x56, r, g, b, 0x00, 0xF0, 0xAA]) // default magic
-    : PROTOCOLS[proto].cmd(r, g, b);
+  const cmd = activeProtocol.cmd(r, g, b);
   try {
     await bleChar.writeValue(cmd);
   } catch(e) { /* silent throttle */ }
@@ -1091,12 +1132,6 @@ function log(type, msg) {
   el.appendChild(line);
   el.scrollTop = el.scrollHeight;
 }
-
-// ─── Protocol custom toggle ───────────────────────────────────────
-document.getElementById('protocol-select').addEventListener('change', function() {
-  document.getElementById('custom-uuids').style.display =
-    this.value === 'custom' ? 'block' : 'none';
-});
 
 // ─── Check support ────────────────────────────────────────────────
 window.addEventListener('load', () => {
