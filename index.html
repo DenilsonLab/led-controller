@@ -96,6 +96,22 @@
     border-radius: 4px;
   }
 
+  .header-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  #lang-select {
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+  }
+
   /* Cards */
   .card {
     background: var(--surface);
@@ -494,58 +510,62 @@
       <div class="logo-dot"></div>
       <h1>LED<span> SYNC</span></h1>
     </div>
-    <span class="version">v1.6</span>
+    <div class="header-meta">
+      <span class="version">v1.6</span>
+      <select id="lang-select" onchange="setLanguage(this.value)">
+        <option value="es">ES</option>
+        <option value="en">EN</option>
+      </select>
+    </div>
   </header>
 
-  <div class="support-warn" id="support-warn">
-    ⚠️ Este app requiere Chrome en HTTPS. Web Bluetooth y captura de audio pueden no estar disponibles en este entorno.
-  </div>
+  <div class="support-warn" id="support-warn">⚠️</div>
 
   <div class="card" id="card-connect">
     <div class="card-header">
-      <span class="card-title">01 — Conexión</span>
-      <span class="badge" id="status-badge">Desconectado</span>
+      <span class="card-title" id="title-connect">01 - Conexion</span>
+      <span class="badge" id="status-badge">Disconnected</span>
     </div>
 
     <div class="connect-row">
       <div class="connect-block">
         <div class="connect-label">
           <span class="dot" id="ble-dot"></span>
-          Tira LED (Bluetooth)
+          <span id="label-led">LED Strip (Bluetooth)</span>
         </div>
         <div id="protocol-found-row" style="display:none; align-items:center; gap:6px; font-size:11px; color:#4ade80; background:rgba(74,222,128,0.08); border:1px solid rgba(74,222,128,0.2); border-radius:6px; padding:6px 10px;">
           <span>✓</span><span id="protocol-found" style="word-break:break-all;"></span>
         </div>
-        <button class="btn btn-primary" id="btn-ble" onclick="connectBLE()">Auto-conectar LED</button>
-        <div style="font-size:10px; color:var(--muted); line-height:1.5;">
-          Prueba automáticamente 6 protocolos hasta encontrar el correcto.
+        <button class="btn btn-primary" id="btn-ble" onclick="connectBLE()">Auto-connect LED</button>
+        <div style="font-size:10px; color:var(--muted); line-height:1.5;" id="ble-help">
+          Tries 6 protocols automatically until one works.
         </div>
       </div>
 
       <div class="connect-block">
         <div class="connect-label">
           <span class="dot" id="audio-dot"></span>
-          Audio de YouTube
+          <span id="label-audio">YouTube Audio</span>
         </div>
-        <div style="font-size:11px; color:var(--muted); line-height:1.6;">
-          Compartí la pestaña de YouTube con audio activado.
+        <div style="font-size:11px; color:var(--muted); line-height:1.6;" id="audio-help">
+          Share the YouTube tab with audio enabled.
         </div>
-        <button class="btn btn-primary" id="btn-audio" onclick="captureAudio()">Capturar Audio</button>
+        <button class="btn btn-primary" id="btn-audio" onclick="captureAudio()">Capture Audio</button>
       </div>
     </div>
 
     <div class="instructions" id="instructions-box">
       <ol>
-        <li>Conectá el LED → el navegador mostrará dispositivos BT cercanos</li>
-        <li>Capturar Audio → elegí la <strong>pestaña de YouTube</strong> → activá "Compartir audio del tab"</li>
-        <li>Seleccioná el modo y dale play en YouTube 🎵</li>
+        <li id="step-1"></li>
+        <li id="step-2"></li>
+        <li id="step-3"></li>
       </ol>
     </div>
   </div>
 
   <div class="card" id="card-vis">
     <div class="card-header">
-      <span class="card-title">02 — Espectro en tiempo real</span>
+      <span class="card-title" id="title-spectrum">02 - Real-time Spectrum</span>
       <span class="badge" id="freq-badge">— Hz</span>
     </div>
 
@@ -553,9 +573,9 @@
       <canvas id="vis-canvas"></canvas>
       <div class="vis-idle" id="vis-idle">
         <span>🎵</span>
-        <span>Esperando audio…</span>
+         <span id="idle-text">Waiting for audio...</span>
       </div>
-      <div class="vis-label">FREQ SPECTRUM</div>
+      <div class="vis-label" id="vis-label">FREQ SPECTRUM</div>
     </div>
 
     <div class="color-row" style="margin-top: 14px;">
@@ -580,61 +600,61 @@
       <div class="color-values" style="font-size:11px; color:var(--muted);">
         <div>rgb(<span id="rgb-text">—</span>)</div>
         <div id="hex-text">#———</div>
-        <div style="margin-top:4px; font-size:10px;" id="peak-label">peak: —Hz</div>
+        <div style="margin-top:4px; font-size:10px;" id="peak-label">peak: - Hz</div>
       </div>
     </div>
   </div>
 
   <div class="card" id="card-mode">
     <div class="card-header">
-      <span class="card-title">03 — Modo de color</span>
+      <span class="card-title" id="title-mode">03 - Color Mode</span>
     </div>
     <div class="mode-grid">
       <div class="mode-btn active" onclick="setMode('spectrum')" id="mode-spectrum">
         <span class="mode-icon">🌈</span>
-        <span class="mode-name">Spectrum</span>
-        <span class="mode-desc">R=graves G=medios B=agudos</span>
+        <span class="mode-name" id="name-spectrum">Spectrum</span>
+         <span class="mode-desc" id="desc-spectrum">R=bass G=mids B=treble</span>
       </div>
       <div class="mode-btn" onclick="setMode('beat')" id="mode-beat">
         <span class="mode-icon">⚡</span>
-        <span class="mode-name">Beat</span>
-        <span class="mode-desc">Flash en cada golpe de bombo</span>
+        <span class="mode-name" id="name-beat">Beat</span>
+         <span class="mode-desc" id="desc-beat">Flash on each kick beat</span>
       </div>
       <div class="mode-btn" onclick="setMode('hue')" id="mode-hue">
         <span class="mode-icon">🔄</span>
-        <span class="mode-name">Hue cycle</span>
-        <span class="mode-desc">Giro de color por BPM</span>
+        <span class="mode-name" id="name-hue">Hue cycle</span>
+         <span class="mode-desc" id="desc-hue">Color spin by BPM</span>
       </div>
       <div class="mode-btn" onclick="setMode('ambient')" id="mode-ambient">
         <span class="mode-icon">🌊</span>
-        <span class="mode-name">Ambient</span>
-        <span class="mode-desc">Color suave por energía</span>
+        <span class="mode-name" id="name-ambient">Ambient</span>
+         <span class="mode-desc" id="desc-ambient">Smooth color by energy</span>
       </div>
     </div>
   </div>
 
   <div class="card">
     <div class="card-header">
-      <span class="card-title">04 — Ajustes</span>
+      <span class="card-title" id="title-settings">04 - Settings</span>
     </div>
     <div class="controls-grid">
       <div class="control-item">
-        <label>Sensibilidad <span id="sens-val">1.8</span></label>
+        <label><span id="label-sens">Sensitivity</span> <span id="sens-val">1.8</span></label>
         <input type="range" id="sensitivity" min="0.5" max="4" step="0.1" value="1.8"
           oninput="sensitivity = parseFloat(this.value); document.getElementById('sens-val').textContent = this.value">
       </div>
       <div class="control-item">
-        <label>Brillo max <span id="bright-val">100%</span></label>
+        <label><span id="label-bright">Max Brightness</span> <span id="bright-val">100%</span></label>
         <input type="range" id="brightness" min="10" max="100" step="5" value="100"
           oninput="brightness = this.value/100; document.getElementById('bright-val').textContent = this.value+'%'">
       </div>
       <div class="control-item">
-        <label>Suavizado <span id="smooth-val">0.75</span></label>
+        <label><span id="label-smooth">Smoothing</span> <span id="smooth-val">0.75</span></label>
         <input type="range" id="smoothing" min="0" max="0.95" step="0.05" value="0.75"
           oninput="if(analyser) analyser.smoothingTimeConstant=parseFloat(this.value); document.getElementById('smooth-val').textContent = this.value">
       </div>
       <div class="control-item">
-        <label>Umbral beat <span id="beat-val">1.5×</span></label>
+        <label><span id="label-beat">Beat Threshold</span> <span id="beat-val">1.5×</span></label>
         <input type="range" id="beat-thresh" min="1.1" max="3" step="0.1" value="1.5"
           oninput="beatThreshold = parseFloat(this.value); document.getElementById('beat-val').textContent = this.value+'×'">
       </div>
@@ -642,29 +662,29 @@
 
     <div style="margin-top:16px; padding-top:14px; border-top:1px solid var(--border);">
       <div style="font-size:11px; color:var(--muted); letter-spacing:0.08em; text-transform:uppercase; margin-bottom:10px;">
-        Control manual
+        <span id="manual-title">Manual Control</span>
       </div>
       <div class="manual-row">
         <input type="color" id="manual-color" value="#5028c8" oninput="setManualColor(this.value)">
-        <span class="manual-label">Elegí un color fijo para el LED</span>
-        <button class="btn btn-secondary" style="width:auto; padding:7px 14px; font-size:11px;" onclick="sendManualColor()">Enviar</button>
+        <span class="manual-label" id="manual-label">Pick a fixed LED color</span>
+        <button class="btn btn-secondary" style="width:auto; padding:7px 14px; font-size:11px;" onclick="sendManualColor()" id="btn-send">Send</button>
       </div>
     </div>
   </div>
 
-  <div id="log"><span class="info">[ LED SYNC ] Listo. Conectá el dispositivo y capturá el audio.</span></div>
+  <div id="log"><span class="info" id="log-ready">[ LED SYNC ] Ready. Connect your device and capture audio.</span></div>
 
   <div class="card" id="card-cmdtest" style="margin-top:14px;">
     <div class="card-header">
-      <span class="card-title">🔧 Diagnóstico — Encontrar comando correcto</span>
+      <span class="card-title" id="title-diagnostics">Diagnostics - Find correct command</span>
     </div>
     <div style="font-size:12px; color:var(--muted); margin-bottom:14px; line-height:1.7;">
-      Si el LED no responde, hacé click en cada botón uno por uno. Cuando el LED cambie a <strong style="color:#f87171;">rojo</strong>, ese es el formato correcto.
+      <span id="diag-help">If LED does not respond, click each button one by one. When LED turns <strong style="color:#f87171;">red</strong>, that is the correct format.</span>
     </div>
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;" id="cmd-test-grid">
       </div>
     <div style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border);">
-      <div style="font-size:11px; color:var(--muted); margin-bottom:8px; letter-spacing:0.08em; text-transform:uppercase;">Comando hex enviado</div>
+      <div style="font-size:11px; color:var(--muted); margin-bottom:8px; letter-spacing:0.08em; text-transform:uppercase;" id="sent-hex-title">Sent hex command</div>
       <div id="cmd-hex-display" style="font-family: 'Space Mono', monospace; font-size:11px; color:#60a5fa; background:var(--surface2); padding:10px 14px; border-radius:8px; word-break:break-all; min-height:32px;">
         —
       </div>
@@ -672,6 +692,7 @@
   </div>
 </div>
 
+<script src="./i18n.js"></script>
 <script>
 // ─── State ───────────────────────────────────────────────────────
 let bleDevice = null, bleChar = null;
@@ -733,14 +754,14 @@ let activeProtocol = null;
 // ─── BLE Connect — Auto Discovery ────────────────────────────────
 async function connectBLE() {
   if (!navigator.bluetooth) {
-    log('err', 'Web Bluetooth no disponible. Necesitás Chrome en HTTPS.');
+    log('err', t('logBtUnavailable'));
     document.getElementById('support-warn').style.display = 'block';
     return;
   }
 
   try {
-    log('info', 'Abriendo selector de dispositivos BLE…');
-    setBadge('status-badge', 'Buscando…', 'warn');
+    log('info', t('logOpenSelector'));
+    setBadge('status-badge', t('statusSearching'), 'warn');
 
     const allServiceUUIDs = PROTOCOLS.map(p => p.service);
     const uniqueServices  = [...new Set(allServiceUUIDs)];
@@ -750,16 +771,16 @@ async function connectBLE() {
       optionalServices: uniqueServices
     });
 
-    log('info', `Dispositivo seleccionado: "${bleDevice.name || 'Sin nombre'}"`);
-    log('info', 'Conectando al servidor GATT…');
+    log('info', t('logDeviceSelected', { name: bleDevice.name || 'N/A' }));
+    log('info', t('logGattConnecting'));
 
     const server = await bleDevice.gatt.connect();
-    log('ok', 'GATT conectado. Probando protocolos…');
+    log('ok', t('logGattConnected'));
 
     activeProtocol = null;
     for (const proto of PROTOCOLS) {
       try {
-        log('info', `  → Probando: ${proto.name}`);
+        log('info', t('logTestingProto', { name: proto.name }));
         const service = await server.getPrimaryService(proto.service);
         const char    = await service.getCharacteristic(proto.char);
         bleChar        = char;
@@ -770,26 +791,26 @@ async function connectBLE() {
     }
 
     if (!activeProtocol) {
-      log('err', '⚠ Ningún protocolo conocido funcionó.');
-      log('err', 'Instalá "nRF Connect" en el celular y leé los UUIDs del dispositivo.');
-      log('err', 'Luego usá la opción Custom UUID más abajo.');
-      setBadge('status-badge', 'Sin protocolo', 'err');
+      log('err', t('logNoProtocol1'));
+      log('err', t('logNoProtocol2'));
+      log('err', t('logNoProtocol3'));
+      setBadge('status-badge', t('statusNoProtocol'), 'err');
       return;
     }
 
-    setBadge('status-badge', '● LED Conectado', 'ok');
+    setBadge('status-badge', t('statusLedConnected'), 'ok');
     setDot('ble-dot', 'on');
-    log('ok', `✓ Protocolo encontrado: ${activeProtocol.name}`);
-    document.getElementById('btn-ble').textContent = 'Reconectar';
+    log('ok', t('logProtocolFound', { name: activeProtocol.name }));
+    document.getElementById('btn-ble').textContent = t('btnBleReconnect');
     document.getElementById('protocol-found').textContent = activeProtocol.name;
     document.getElementById('protocol-found-row').style.display = 'flex';
     document.getElementById('card-connect').classList.add('active');
 
     bleDevice.addEventListener('gattserverdisconnected', () => {
       bleChar = null;
-      setBadge('status-badge', 'Desconectado', '');
+      setBadge('status-badge', t('statusDisconnected'), '');
       setDot('ble-dot', '');
-      log('err', 'LED desconectado.');
+      log('err', t('logLedDisconnected'));
     });
 
     await sendColor(255, 255, 255, true);
@@ -798,18 +819,18 @@ async function connectBLE() {
 
   } catch (err) {
     if (err.name === 'NotFoundError' || err.message.includes('cancelled')) {
-      log('info', 'Selección de dispositivo cancelada.');
+      log('info', t('logSelectionCancelled'));
     } else {
-      log('err', `BLE Error: ${err.message}`);
+      log('err', t('logBleError', { msg: err.message }));
     }
-    setBadge('status-badge', 'Error', 'err');
+    setBadge('status-badge', t('statusError'), 'err');
   }
 }
 
 // ─── Audio Capture ───────────────────────────────────────────────
 async function captureAudio() {
   try {
-    log('info', 'Solicitando captura de pantalla con audio…');
+    log('info', t('logRequestCapture'));
     const stream = await navigator.mediaDevices.getDisplayMedia({
       video: true,
       audio: {
@@ -822,7 +843,7 @@ async function captureAudio() {
 
     const audioTracks = stream.getAudioTracks();
     if (audioTracks.length === 0) {
-      log('err', 'No se capturó audio. ¿Activaste "Compartir audio del tab"?');
+      log('err', t('logNoAudioCaptured'));
       stream.getTracks().forEach(t => t.stop());
       return;
     }
@@ -831,22 +852,22 @@ async function captureAudio() {
 
     setupAnalyser(stream);
     setDot('audio-dot', 'on');
-    log('ok', `Audio capturado: ${audioTracks[0].label || 'Tab audio'}`);
-    document.getElementById('btn-audio').textContent = 'Recapturar';
+    log('ok', t('logAudioCaptured', { label: audioTracks[0].label || 'Tab audio' }));
+    document.getElementById('btn-audio').textContent = t('btnAudioRecapture');
     document.getElementById('vis-idle').style.display = 'none';
     startAnimation();
 
     audioTracks[0].addEventListener('ended', () => {
-      log('warn', 'Captura de audio detenida por el usuario.');
+      log('warn', t('logCaptureStopped'));
       setDot('audio-dot', '');
       stopAnimation();
     });
 
   } catch (err) {
     if (err.name !== 'NotAllowedError') {
-      log('err', `Audio Error: ${err.message}`);
+      log('err', t('logAudioError', { msg: err.message }));
     } else {
-      log('info', 'Captura cancelada.');
+      log('info', t('logCaptureCancelled'));
     }
   }
 }
@@ -859,7 +880,7 @@ function setupAnalyser(stream) {
   analyser.smoothingTimeConstant = 0.75;
   sourceNode = audioCtx.createMediaStreamSource(stream);
   sourceNode.connect(analyser);
-  audioCtx.resume().then(() => log('info', `AudioContext: ${audioCtx.state}, sampleRate: ${audioCtx.sampleRate}Hz`));
+  audioCtx.resume().then(() => log('info', t('logAudioContext', { state: audioCtx.state, rate: audioCtx.sampleRate })));
 }
 
 // ─── Color Sender ────────────────────────────────────────────────
@@ -1037,7 +1058,7 @@ function animate() {
 
   // ─ Update labels ──────────────────────────────────────────────
   document.getElementById('freq-badge').textContent = `${peakHz} Hz`;
-  document.getElementById('peak-label').textContent = `peak: ${peakHz} Hz`;
+  document.getElementById('peak-label').textContent = `${t('peakPrefix')}: ${peakHz} Hz`;
 }
 
 // ─── Draw Spectrum Canvas ────────────────────────────────────────
@@ -1110,7 +1131,7 @@ function sendManualColor() {
   const g = parseInt(hex.slice(3,5),16);
   const b = parseInt(hex.slice(5,7),16);
   sendColor(r, g, b, true);
-  log('info', `Color manual enviado: rgb(${r},${g},${b})`);
+  log('info', t('logManualColorSent', { r, g, b }));
 }
 
 // ─── HSL → RGB ───────────────────────────────────────────────────
@@ -1161,7 +1182,7 @@ const CMD_FORMATS = [
   { label: 'Raw RGB 3B',       desc: 'RR GG BB',                 fn: (r,g,b) => [r,g,b] },
   { label: 'Raw RGB+W 4B',     desc: 'RR GG BB 00',              fn: (r,g,b) => [r,g,b,0x00] },
   { label: 'AA header',        desc: 'AA 0E RR GG BB FF 00 CHK', fn: (r,g,b) => { const chk=(0xAA+0x0E+r+g+b+0xFF)&0xFF; return [0xAA,0x0E,r,g,b,0xFF,0x00,chk]; } },
-  { label: 'Custom hex',       desc: 'Ingresá tus propios bytes', fn: null },
+   { label: 'Custom hex',       desc: 'Custom', fn: null },
 ];
 
 function buildCmdTester() {
@@ -1172,11 +1193,12 @@ function buildCmdTester() {
     const btn = document.createElement('button');
     btn.className = 'btn btn-secondary';
     btn.style.cssText = 'font-size:11px; padding:9px 10px; text-align:left; display:flex; flex-direction:column; gap:3px; height:auto;';
-    btn.innerHTML = `<span style="font-weight:700; color:var(--text);">${fmt.label}</span><span style="color:var(--muted); font-size:10px; font-family:monospace;">${fmt.desc}</span>`;
+      const desc = fmt.fn === null ? t('customHexDesc') : fmt.desc;
+      btn.innerHTML = `<span style="font-weight:700; color:var(--text);">${fmt.label}</span><span style="color:var(--muted); font-size:10px; font-family:monospace;">${desc}</span>`;
     if (fmt.fn === null) {
       btn.innerHTML = `<span style="font-weight:700; color:var(--text);">Custom hex</span>`;
       btn.onclick = () => {
-        const hex = prompt('Ingresá los bytes en hex separados por espacios (ej: 56 FF 00 00 00 F0 AA):');
+        const hex = prompt(t('promptCustomHex'));
         if (!hex) return;
         const bytes = hex.trim().split(/\s+/).map(h => parseInt(h, 16)).filter(n => !isNaN(n));
         if (bytes.length === 0) return;
@@ -1193,14 +1215,14 @@ function buildCmdTester() {
 
 async function testCmdFormat(fmt, idx) {
   if (!bleChar) {
-    log('err', 'Conectá el LED primero.');
+    log('err', t('logConnectFirst'));
     return;
   }
   const r = 255, g = 0, b = 0; 
   const bytes = fmt.fn(r, g, b);
   const cmd = new Uint8Array(bytes);
   showCmdHex(bytes);
-  log('info', `Probando "${fmt.label}": [${bytes.map(b=>b.toString(16).padStart(2,'0').toUpperCase()).join(' ')}]`);
+  log('info', t('logTestingFmt', { label: fmt.label, bytes: bytes.map(b=>b.toString(16).padStart(2,'0').toUpperCase()).join(' ') }));
   await sendRawBytes(cmd);
   document.getElementById('cmd-test-grid').querySelectorAll('button').forEach((b,i) => {
     b.style.borderColor = i === idx ? 'rgba(74,222,128,0.5)' : '';
@@ -1214,7 +1236,7 @@ async function sendRawBytes(cmd) {
     await bleChar.writeValueWithoutResponse(cmd);
   } catch(e) {
     try { await bleChar.writeValue(cmd); } catch(_) {
-      log('err', `Error enviando bytes: ${e.message}`);
+      log('err', t('logSendBytesError', { msg: e.message }));
     }
   }
 }
@@ -1228,13 +1250,16 @@ function showCmdHex(bytes) {
 window.addEventListener('load', () => {
   if (!navigator.bluetooth || !window.isSecureContext) {
     document.getElementById('support-warn').style.display = 'block';
-    log('warn', 'Web Bluetooth necesita HTTPS. Hosteá este archivo en GitHub Pages o similar.');
+    log('warn', t('logBtHttpsWarn'));
   }
   if (!navigator.mediaDevices?.getDisplayMedia) {
-    log('warn', 'getDisplayMedia no disponible en este contexto.');
+    log('warn', t('logDisplayMediaWarn'));
   }
-  log('info', `Navegador: ${navigator.userAgent.includes('Chrome') ? '✓ Chrome detectado' : '⚠ Usá Chrome'}`);
-  buildCmdTester();
+  log('info', t('logBrowserChrome', { status: navigator.userAgent.includes('Chrome') ? t('browserChromeOk') : t('browserChromeWarn') }));
+  const storedLang = localStorage.getItem('led-sync-lang');
+  const savedLang = storedLang || ((navigator.language || '').toLowerCase().startsWith('es') ? 'es' : 'en');
+  document.getElementById('lang-select').value = savedLang;
+  setLanguage(savedLang);
 });
 </script>
 </body>
